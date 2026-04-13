@@ -6,8 +6,11 @@ import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Verify from './pages/Verify';
 import Admin from './pages/Admin';
+import AnimatedBackground from './components/AnimatedBackground';
+import IntroLoader from './components/IntroLoader';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from './utils/contract';
 import './App.css';
+import { motion } from 'framer-motion';
 
 function App() {
   const [account, setAccount] = useState(null);
@@ -15,31 +18,30 @@ function App() {
   const [role, setRole] = useState(0);
   const [actorName, setActorName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [introComplete, setIntroComplete] = useState(false);
 
-const connectWallet = async () => {
-  if (!window.ethereum) return alert('Please install MetaMask!');
-  setLoading(true);
-  try {
-    // ✅ Add network config to fix ENS error
-    const provider = new ethers.BrowserProvider(window.ethereum, {
-      chainId: 31337,
-      name: 'hardhat'
-    });
-
-    await provider.send('eth_requestAccounts', []);
-    const signer = await provider.getSigner();
-    const address = await signer.getAddress();
-    const ct = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-    setAccount(address);
-    setContract(ct);
+  const connectWallet = async () => {
+    if (!window.ethereum) return alert('Please install MetaMask!');
+    setLoading(true);
     try {
-      const actor = await ct.getActor(address);
-      setRole(Number(actor.role));
-      setActorName(actor.name);
-    } catch (e) { setRole(0); }
-  } catch (e) { console.error(e); }
-  setLoading(false);
-};
+      const provider = new ethers.BrowserProvider(window.ethereum, {
+        chainId: 31337,
+        name: 'hardhat',
+      });
+      await provider.send('eth_requestAccounts', []);
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      const ct = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      setAccount(address);
+      setContract(ct);
+      try {
+        const actor = await ct.getActor(address);
+        setRole(Number(actor.role));
+        setActorName(actor.name);
+      } catch (e) { setRole(0); setActorName(''); }
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
 
   const disconnect = () => {
     setAccount(null); setContract(null); setRole(0); setActorName('');
@@ -47,19 +49,33 @@ const connectWallet = async () => {
 
   return (
     <Router>
-      <div className="bg-grid" />
-      <div className="content">
-        <Navbar
-          account={account} role={role} actorName={actorName}
-          onConnect={connectWallet} onDisconnect={disconnect} loading={loading}
-        />
-        <Routes>
-          <Route path="/" element={<Landing account={account} onConnect={connectWallet} />} />
-          <Route path="/dashboard" element={<Dashboard contract={contract} account={account} role={role} />} />
-          <Route path="/verify" element={<Verify contract={contract} />} />
-          <Route path="/admin" element={<Admin contract={contract} account={account} />} />
-        </Routes>
-      </div>
+      {/* Cinematic Intro */}
+      {!introComplete && (
+        <IntroLoader onComplete={() => setIntroComplete(true)} />
+      )}
+
+      {/* Main App */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: introComplete ? 1 : 0 }}
+        transition={{ duration: 1 }}
+        style={{ pointerEvents: introComplete ? 'all' : 'none' }}
+      >
+        <div className="bg-grid" />
+        <AnimatedBackground />
+        <div className="content">
+          <Navbar
+            account={account} role={role} actorName={actorName}
+            onConnect={connectWallet} onDisconnect={disconnect} loading={loading}
+          />
+          <Routes>
+            <Route path="/" element={<Landing account={account} onConnect={connectWallet} />} />
+            <Route path="/dashboard" element={<Dashboard contract={contract} account={account} role={role} />} />
+            <Route path="/verify" element={<Verify contract={contract} />} />
+            <Route path="/admin" element={<Admin contract={contract} account={account} />} />
+          </Routes>
+        </div>
+      </motion.div>
     </Router>
   );
 }

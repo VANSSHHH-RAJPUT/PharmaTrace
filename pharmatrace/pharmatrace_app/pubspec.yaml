@@ -1,0 +1,50 @@
+name: pharmatrace_app
+description: PharmaTrace - Blockchain Pharma Supply Chain
+
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Blockchain
+  web3dart: ^2.7.3
+  web_socket_channel: ^2.4.0
+  http: ^1.2.0
+
+  # WalletConnect
+  reown_appkit: ^1.1.1
+
+  # QR Code
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^5.1.0
+
+  # UI & Animations
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+  animate_do: ^3.3.4
+  lottie: ^3.1.0
+  shimmer: ^3.0.0
+
+  # Notifications
+  flutter_local_notifications: ^17.2.2
+  firebase_core: ^3.3.0
+  firebase_messaging: ^15.1.0
+
+  # Utils
+  shared_preferences: ^2.2.3
+  url_launcher: ^6.3.0
+  flutter_svg: ^2.0.10+1
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

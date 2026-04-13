@@ -193,6 +193,19 @@ h1, h2, h3 {
   pointer-events: none;
   z-index: 0;
 }
+.glass {
+  background: rgba(10, 22, 40, 0.72);
+  backdrop-filter: blur(22px);
+  border: 1px solid rgba(0, 212, 255, 0.16);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+
+.glass:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 212, 255, 0.3);
+  box-shadow: 0 0 24px rgba(0, 212, 255, 0.12);
+}
 
 /* ── Content above bg ── */
 .content { position: relative; z-index: 1; }
