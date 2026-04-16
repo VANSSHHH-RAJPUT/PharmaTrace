@@ -2,15 +2,15 @@ const hre = require("hardhat");
 
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
-  console.log("Deploying with account:", deployer.address);
+  console.log("Deploying with:", deployer.address);
 
   const PharmaTrace = await hre.ethers.getContractFactory("PharmaTrace");
-  const pharmaTrace = await PharmaTrace.deploy();
-  await pharmaTrace.waitForDeployment();
+  const contract = await PharmaTrace.deploy();
 
-  const address = await pharmaTrace.getAddress();
+  await contract.waitForDeployment();
+
+  const address = await contract.getAddress();
   console.log("PharmaTrace deployed to:", address);
-  console.log("Admin address:", deployer.address);
 }
 
 main().catch((error) => {

@@ -1,4 +1,7 @@
-export const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+export const CONTRACT_ADDRESS = '0x2DF376116C67BE1bC69e050149E6E98164BDa4Ea';
+export const EXPECTED_CHAIN_ID = 11155111;
+export const EXPECTED_CHAIN_HEX = '0xaa36a7';
+export const NETWORK_NAME = 'Sepolia';
 
 export const CONTRACT_ABI = [
   "function registerActor(address _wallet, string memory _name, uint8 _role) external",
@@ -50,7 +53,9 @@ export const STAGE_COLORS = {
 export const formatDate = (timestamp) => {
   if (!timestamp) return 'N/A';
   return new Date(Number(timestamp) * 1000).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric'
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
   });
 };
 
