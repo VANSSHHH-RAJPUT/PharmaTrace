@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, ArrowRight, AlertTriangle } from 'lucide-react';
+import { X, ArrowRight, AlertTriangle, ExternalLink } from 'lucide-react';
 import { STAGES } from '../utils/contract';
 
-const TransferModal = ({ product, contract, onClose, onSuccess, role }) => {
+const TransferModal = ({ product, contract, onClose, onSuccess, role, addToast }) => {
   const [toAddress, setToAddress] = useState('');
   const [remarks, setRemarks] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
+  const [txHash, setTxHash] = useState('');
 
-  // ✅ Auto-determine next stage based on current role
   const getNextStage = () => {
-    if (role === 1) return 1; // Manufacturer → ShippedToDistributor
-    if (role === 2) return 3; // Distributor → ShippedToRetailer
+    if (role === 1) return 1;
+    if (role === 2) return 3;
     return 1;
   };
 
@@ -23,35 +23,34 @@ const TransferModal = ({ product, contract, onClose, onSuccess, role }) => {
   };
 
   const handleTransfer = async () => {
-    if (!toAddress || !toAddress.startsWith('0x')) {
-      return setMsg('❌ Please enter a valid Ethereum address.');
+    if (!toAddress || !toAddress.startsWith('0x') || toAddress.length !== 42) {
+      return setMsg('❌ Please enter a valid 42-character Ethereum address.');
     }
-    if (toAddress.length !== 42) {
-      return setMsg('❌ Address must be 42 characters long.');
-    }
-    setLoading(true); setMsg('');
+    setLoading(true); setMsg(''); setTxHash('');
     try {
-      const nextStage = getNextStage();
-      const transferRemarks = remarks.trim() || getNextStageLabel();
-
-      // ✅ All 4 arguments: productId, toAddress, newStage, remarks
       const tx = await contract.transferProduct(
         product.id,
         toAddress,
-        nextStage,
-        transferRemarks
+        getNextStage(),
+        remarks.trim() || getNextStageLabel()
       );
       setMsg('⏳ Submitting transaction...');
-      await tx.wait();
+      addToast?.('Transaction submitted...', 'pending', 10000);
+      const receipt = await tx.wait();
+      const hash = receipt.hash;
+      setTxHash(hash);
       setMsg('✅ Transfer successful!');
-      setTimeout(onSuccess, 1500);
+      addToast?.('Product transferred successfully!', 'success');
+      setTimeout(onSuccess, 2000);
     } catch (e) {
       if (e?.message?.includes('network changed')) {
         setMsg('✅ Transfer likely succeeded. Reloading...');
         setTimeout(() => window.location.reload(), 2000);
         return;
       }
-      setMsg('❌ ' + (e.reason || e.message || e.toString()));
+      const err = e.reason || e.message || 'Transaction failed';
+      setMsg('❌ ' + err);
+      addToast?.(err, 'error');
     }
     setLoading(false);
   };
@@ -74,7 +73,7 @@ const TransferModal = ({ product, contract, onClose, onSuccess, role }) => {
           </button>
         </div>
 
-        {/* Product Info */}
+        {/* Product info */}
         <div style={{
           background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)',
           borderRadius: 10, padding: 16, marginBottom: 20,
@@ -82,7 +81,6 @@ const TransferModal = ({ product, contract, onClose, onSuccess, role }) => {
           <p style={{ color: 'var(--text-secondary)', fontSize: 12, marginBottom: 4 }}>Transferring</p>
           <p style={{ fontWeight: 600 }}>{product.name}</p>
           <p style={{ fontSize: 12, color: 'var(--cyan)', fontFamily: 'monospace' }}>{product.batchNumber}</p>
-          {/* ✅ Show current and next stage */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
             <span style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '3px 8px', borderRadius: 4 }}>
               {STAGES[product.currentStage] || 'Manufactured'}
@@ -94,29 +92,18 @@ const TransferModal = ({ product, contract, onClose, onSuccess, role }) => {
           </div>
         </div>
 
-        {/* Recipient Address */}
         <div style={{ marginBottom: 16 }}>
           <label className="field-label">Recipient Wallet Address</label>
-          <input
-            className="input-field"
-            placeholder="0x..."
-            value={toAddress}
-            onChange={e => setToAddress(e.target.value)}
-          />
+          <input className="input-field" placeholder="0x..." value={toAddress}
+            onChange={e => setToAddress(e.target.value)} />
         </div>
 
-        {/* Remarks */}
         <div style={{ marginBottom: 16 }}>
           <label className="field-label">Remarks (optional)</label>
-          <input
-            className="input-field"
-            placeholder={getNextStageLabel()}
-            value={remarks}
-            onChange={e => setRemarks(e.target.value)}
-          />
+          <input className="input-field" placeholder={getNextStageLabel()}
+            value={remarks} onChange={e => setRemarks(e.target.value)} />
         </div>
 
-        {/* Warning */}
         <div style={{
           display: 'flex', gap: 8, alignItems: 'flex-start',
           background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
@@ -124,15 +111,26 @@ const TransferModal = ({ product, contract, onClose, onSuccess, role }) => {
         }}>
           <AlertTriangle size={14} color="#f59e0b" style={{ marginTop: 1, flexShrink: 0 }} />
           <p style={{ fontSize: 12, color: '#f59e0b', lineHeight: 1.5 }}>
-            This is permanent. Ensure the recipient address is correct before confirming.
+            This action is permanent and cannot be undone. Verify the recipient address.
           </p>
         </div>
 
         {msg && (
-          <p style={{
-            marginBottom: 14, fontSize: 13,
-            color: msg.includes('✅') ? 'var(--green)' : msg.includes('⏳') ? 'var(--cyan)' : '#ff6b6b'
-          }}>{msg}</p>
+          <div style={{ marginBottom: 14 }}>
+            <p style={{ fontSize: 13, color: msg.includes('✅') ? 'var(--green)' : msg.includes('⏳') ? 'var(--cyan)' : '#ff6b6b' }}>
+              {msg}
+            </p>
+            {/* ✅ Etherscan link after success */}
+            {txHash && (
+              <a
+                href={`https://sepolia.etherscan.io/tx/${txHash}`}
+                target="_blank" rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--cyan)', marginTop: 4 }}
+              >
+                <ExternalLink size={11} /> View on Etherscan
+              </a>
+            )}
+          </div>
         )}
 
         <div style={{ display: 'flex', gap: 12 }}>

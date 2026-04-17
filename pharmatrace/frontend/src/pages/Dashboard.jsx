@@ -1,23 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Package, RefreshCw } from 'lucide-react';
+import { Plus, Package, RefreshCw, Search } from 'lucide-react';
 import StatsBar from '../components/StatsBar';
 import ProductCard from '../components/ProductCard';
 import TransferModal from '../components/TransferModal';
-import { ROLES } from '../utils/contract';
+import { ROLES, STAGES } from '../utils/contract';
 
-const Dashboard = ({ contract, account, role }) => {
+const Dashboard = ({ contract, account, role, addToast }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [transferProduct, setTransferProduct] = useState(null);
-  const [form, setForm] = useState({
-    name: '', batchNumber: '', metadataHash: '', manufactureDate: '', expiryDate: ''
-  });
+  const [form, setForm] = useState({ name: '', batchNumber: '', metadataHash: '', manufactureDate: '', expiryDate: '' });
   const [msg, setMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filterStage, setFilterStage] = useState('all');
 
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     if (!contract) return;
     setLoading(true);
     try {
@@ -36,7 +36,7 @@ const Dashboard = ({ contract, account, role }) => {
               manufactureDate: p.manufactureDate,
               expiryDate: p.expiryDate,
               currentOwner: p.currentOwner,
-              currentStage: Number(p.currentStage), // ✅ correct field
+              currentStage: Number(p.currentStage),
               metadataHash: p.metadataHash,
               exists: p.exists,
             });
@@ -46,9 +46,19 @@ const Dashboard = ({ contract, account, role }) => {
       setProducts(list);
     } catch (e) { console.error(e); }
     setLoading(false);
-  };
+  }, [contract, account, role]);
 
-  useEffect(() => { loadProducts(); }, [contract, account]);
+  useEffect(() => { loadProducts(); }, [loadProducts]);
+
+  // ✅ Search + filter
+  const filteredProducts = products.filter(p => {
+    const matchSearch =
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.batchNumber.toLowerCase().includes(search.toLowerCase()) ||
+      p.manufacturerName?.toLowerCase().includes(search.toLowerCase());
+    const matchStage = filterStage === 'all' || p.currentStage === Number(filterStage);
+    return matchSearch && matchStage;
+  });
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -57,28 +67,33 @@ const Dashboard = ({ contract, account, role }) => {
     try {
       const mfg = Math.floor(new Date(form.manufactureDate).getTime() / 1000);
       const exp = Math.floor(new Date(form.expiryDate).getTime() / 1000);
-      const tx = await contract.createProduct(
-        form.name,
-        form.batchNumber,
-        mfg,
-        exp,
-        form.metadataHash || 'N/A' // ✅ metadataHash instead of description
-      );
+      const tx = await contract.createProduct(form.name, form.batchNumber, mfg, exp, form.metadataHash || 'N/A');
       setMsg('⏳ Confirming transaction...');
       await tx.wait();
-      setMsg('✅ Product created successfully!');
+      setMsg('✅ Product created!');
+      addToast?.('Product created successfully!', 'success');
       setForm({ name: '', batchNumber: '', metadataHash: '', manufactureDate: '', expiryDate: '' });
       setShowForm(false);
       loadProducts();
     } catch (e) {
-      if (e?.message?.includes('network changed')) {
-        setMsg('✅ Product likely created. Reloading...');
-        setTimeout(() => window.location.reload(), 2000);
-        return;
-      }
-      setMsg('❌ ' + (e.reason || e.message));
+      const err = e.reason || e.message || 'Transaction failed';
+      setMsg('❌ ' + err);
+      addToast?.(err, 'error');
     }
     setSubmitting(false);
+  };
+
+  const handleMarkSold = async (productId) => {
+    if (!contract) return;
+    try {
+      addToast?.('Submitting transaction...', 'pending', 10000);
+      const tx = await contract.markAsSold(productId);
+      await tx.wait();
+      addToast?.(`Product #${productId} marked as sold! ✅`, 'success');
+      loadProducts();
+    } catch (e) {
+      addToast?.(e.reason || e.message || 'Failed to mark sold', 'error');
+    }
   };
 
   if (!account) return (
@@ -108,7 +123,7 @@ const Dashboard = ({ contract, account, role }) => {
           <div style={{ display: 'flex', gap: 12 }}>
             <button onClick={loadProducts} className="btn-outline"
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', fontSize: 14 }}>
-              <RefreshCw size={14} className={loading ? 'spinner' : ''} /> Refresh
+              <RefreshCw size={14} /> Refresh
             </button>
             {role === 1 && (
               <button onClick={() => setShowForm(!showForm)} className="btn-primary"
@@ -175,31 +190,64 @@ const Dashboard = ({ contract, account, role }) => {
           </motion.div>
         )}
 
+        {/* ✅ Search + Filter */}
+        {products.length > 0 && (
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <Search size={14} style={{
+                position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                color: 'var(--text-secondary)', pointerEvents: 'none',
+              }} />
+              <input
+                className="input-field"
+                placeholder="Search by name, batch or manufacturer..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ paddingLeft: 36 }}
+              />
+            </div>
+            <select
+              className="input-field"
+              value={filterStage}
+              onChange={e => setFilterStage(e.target.value)}
+              style={{ width: 220 }}
+            >
+              <option value="all">All Stages</option>
+              {Object.entries(STAGES).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Products Grid */}
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 20 }}>
             {role === 4 ? 'All Products' : 'My Products'}
             <span style={{ marginLeft: 10, fontSize: 14, color: 'var(--text-secondary)', fontWeight: 400 }}>
-              ({products.length})
+              ({filteredProducts.length}{filteredProducts.length !== products.length ? ` of ${products.length}` : ''})
             </span>
           </h2>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary)' }}>
+            <div style={{ textAlign: 'center', padding: 60 }}>
               <span className="spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
             </div>
-          ) : products.length === 0 ? (
+          ) : filteredProducts.length === 0 ? (
             <div className="glass" style={{ padding: 48, textAlign: 'center' }}>
               <Package size={40} style={{ color: 'var(--text-secondary)', marginBottom: 12, opacity: 0.5 }} />
               <p style={{ color: 'var(--text-secondary)' }}>
-                {role === 1 ? 'No products yet. Create one above.' : 'No products assigned to your wallet.'}
+                {search || filterStage !== 'all'
+                  ? 'No products match your search.'
+                  : role === 1 ? 'No products yet. Create one above.' : 'No products assigned to your wallet.'}
               </p>
             </div>
           ) : (
             <div className="grid-3">
-              {products.map((p, i) => (
+              {filteredProducts.map((p, i) => (
                 <ProductCard
                   key={p.id} product={p} index={i} role={role} account={account}
                   onTransfer={() => setTransferProduct(p)}
+                  onMarkSold={() => handleMarkSold(p.id)}
                 />
               ))}
             </div>
@@ -207,12 +255,10 @@ const Dashboard = ({ contract, account, role }) => {
         </div>
       </div>
 
-      {/* ✅ Pass role to TransferModal */}
       {transferProduct && (
         <TransferModal
-          product={transferProduct}
-          contract={contract}
-          role={role}
+          product={transferProduct} contract={contract} role={role}
+          addToast={addToast}
           onClose={() => setTransferProduct(null)}
           onSuccess={() => { setTransferProduct(null); loadProducts(); }}
         />
