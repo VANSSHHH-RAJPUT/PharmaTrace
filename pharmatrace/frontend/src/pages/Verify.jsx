@@ -1,33 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Shield, Package, Clock, AlertTriangle, CheckCircle, ArrowRight } from 'lucide-react';
+import { Search, Shield, Package, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
 import QRCode from 'react-qr-code';
-import { formatDate, shortAddress, ROLES } from '../utils/contract';
+import { formatDate, shortAddress, STAGES, STAGE_COLORS } from '../utils/contract';
 
 const Verify = ({ contract }) => {
   const [searchParams] = useSearchParams();
   const [productId, setProductId] = useState(searchParams.get('id') || '');
   const [product, setProduct] = useState(null);
-  const [history, setHistory] = useState(null);
+  const [history, setHistory] = useState([]); // ✅ default empty array, NOT null
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleVerify = async () => {
+  const handleVerify = useCallback(async () => {
     if (!contract) return setError('Connect your wallet to verify products.');
     if (!productId) return setError('Please enter a Product ID.');
-    setLoading(true); setError(''); setProduct(null); setHistory(null);
+    setLoading(true); setError(''); setProduct(null); setHistory([]);
     try {
       const p = await contract.getProduct(productId);
       const h = await contract.getProductHistory(productId);
-      setProduct({ name: p.name, batchNumber: p.batchNumber, currentOwner: p.currentOwner,
-        manufactureDate: p.manufactureDate, expiryDate: p.expiryDate, isActive: p.isActive, description: p.description });
-      setHistory({ owners: h.owners, timestamps: h.timestamps });
-    } catch (e) { setError('Product not found or invalid ID.'); }
-    setLoading(false);
-  };
 
-  useEffect(() => { if (searchParams.get('id') && contract) handleVerify(); }, [contract]);
+      // ✅ Correct fields matching your Product struct
+      setProduct({
+        id: Number(p.id),
+        name: p.name,
+        batchNumber: p.batchNumber,
+        manufacturerName: p.manufacturerName,
+        manufactureDate: p.manufactureDate,
+        expiryDate: p.expiryDate,
+        currentOwner: p.currentOwner,
+        currentStage: Number(p.currentStage),
+        metadataHash: p.metadataHash,
+      });
+
+      // ✅ h is array of Transfer structs: { from, to, stage, timestamp, remarks }
+      setHistory(Array.from(h));
+    } catch (e) {
+      setError('Product not found or invalid ID.');
+    }
+    setLoading(false);
+  }, [contract, productId]);
+
+  // ✅ Auto-verify if id is in URL
+  useEffect(() => {
+    if (searchParams.get('id') && contract) handleVerify();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contract]);
 
   const isExpired = product && Number(product.expiryDate) * 1000 < Date.now();
   const qrValue = product ? `${window.location.origin}/verify?id=${productId}` : '';
@@ -35,27 +54,33 @@ const Verify = ({ contract }) => {
   return (
     <div className="page">
       <div className="container" style={{ paddingTop: 40, paddingBottom: 60, maxWidth: 800 }}>
+
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 40 }}>
           <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Product Verification</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Enter a Product ID to verify its authenticity and full supply chain history.</p>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Enter a Product ID to verify its authenticity and full supply chain history.
+          </p>
         </motion.div>
 
         {/* Search bar */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="glass" style={{ padding: 24, marginBottom: 32 }}>
           <div style={{ display: 'flex', gap: 12 }}>
-            <input className="input-field" placeholder="Enter Product ID (e.g. 1, 2, 3...)"
-              value={productId} onChange={e => setProductId(e.target.value)}
+            <input
+              className="input-field"
+              placeholder="Enter Product ID (e.g. 1, 2, 3...)"
+              value={productId}
+              onChange={e => setProductId(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleVerify()}
-              style={{ fontSize: 15 }} />
+              style={{ fontSize: 15 }}
+            />
             <button className="btn-primary" onClick={handleVerify} disabled={loading}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 24px', whiteSpace: 'nowrap' }}>
               {loading ? <span className="spinner" /> : <><Search size={14} /> Verify</>}
             </button>
           </div>
           {error && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12,
-              color: '#ff6b6b', fontSize: 13 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, color: '#ff6b6b', fontSize: 13 }}>
               <AlertTriangle size={13} /> {error}
             </div>
           )}
@@ -67,7 +92,8 @@ const Verify = ({ contract }) => {
 
             {/* Status banner */}
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderRadius: 12, marginBottom: 24,
+              display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px',
+              borderRadius: 12, marginBottom: 24,
               background: isExpired ? 'rgba(255,59,59,0.08)' : 'rgba(0,255,136,0.08)',
               border: `1px solid ${isExpired ? 'rgba(255,59,59,0.3)' : 'rgba(0,255,136,0.3)'}`,
             }}>
@@ -78,9 +104,15 @@ const Verify = ({ contract }) => {
               <span style={{ fontWeight: 600, color: isExpired ? '#ff6b6b' : 'var(--green)', fontSize: 15 }}>
                 {isExpired ? 'This product has EXPIRED' : 'Product Verified — Authentic & Active'}
               </span>
+              {/* ✅ Show current stage */}
+              <span className={`badge ${STAGE_COLORS[product.currentStage] || 'badge-cyan'}`}
+                style={{ marginLeft: 'auto', fontSize: 11 }}>
+                {STAGES[product.currentStage] || 'Manufactured'}
+              </span>
             </div>
 
             <div className="grid-2" style={{ marginBottom: 24 }}>
+
               {/* Product Details */}
               <div className="glass" style={{ padding: 28 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
@@ -90,17 +122,18 @@ const Verify = ({ contract }) => {
                 {[
                   { label: 'Name', val: product.name },
                   { label: 'Batch No.', val: product.batchNumber, mono: true, color: 'var(--cyan)' },
+                  { label: 'Manufacturer', val: product.manufacturerName },
                   { label: 'Mfg Date', val: formatDate(product.manufactureDate) },
                   { label: 'Exp Date', val: formatDate(product.expiryDate), danger: isExpired },
                   { label: 'Current Owner', val: shortAddress(product.currentOwner), mono: true },
-                  { label: 'Description', val: product.description },
+                  { label: 'Notes', val: product.metadataHash || '—' }, // ✅ metadataHash
                 ].map(row => (
                   <div key={row.label} style={{ display: 'flex', gap: 12, marginBottom: 12, fontSize: 14 }}>
                     <span style={{ color: 'var(--text-secondary)', minWidth: 96, flexShrink: 0 }}>{row.label}</span>
                     <span style={{
                       fontFamily: row.mono ? 'monospace' : 'inherit',
                       color: row.danger ? '#ff6b6b' : row.color || 'var(--text-primary)',
-                      fontSize: row.mono ? 12 : 14, wordBreak: 'break-all'
+                      fontSize: row.mono ? 12 : 14, wordBreak: 'break-all',
                     }}>{row.val}</span>
                   </div>
                 ))}
@@ -114,48 +147,79 @@ const Verify = ({ contract }) => {
                 <p style={{ color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center' }}>
                   Scan to verify Product #{productId} on PharmaTrace
                 </p>
+                <Shield size={14} color="var(--cyan)" style={{ marginTop: 8 }} />
               </div>
             </div>
 
             {/* Chain of Custody */}
-            {history && (
-              <div className="glass" style={{ padding: 28 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-                  <Clock size={18} color="var(--cyan)" />
-                  <h3 style={{ fontSize: 16, fontWeight: 600 }}>Chain of Custody</h3>
-                  <span className="badge badge-cyan" style={{ marginLeft: 'auto', fontSize: 11 }}>
-                    {history.owners.length} transfer{history.owners.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
+            <div className="glass" style={{ padding: 28 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+                <Clock size={18} color="var(--cyan)" />
+                <h3 style={{ fontSize: 16, fontWeight: 600 }}>Chain of Custody</h3>
+                <span className="badge badge-cyan" style={{ marginLeft: 'auto', fontSize: 11 }}>
+                  {history.length} event{history.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {history.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>No transfer history found.</p>
+              ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {history.owners.map((owner, i) => (
+                  {history.map((transfer, i) => (
                     <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+
+                      {/* Timeline dot + line */}
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <div style={{
                           width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                          background: i === history.owners.length - 1 ? 'var(--cyan-dim)' : 'rgba(255,255,255,0.05)',
-                          border: `2px solid ${i === history.owners.length - 1 ? 'var(--cyan)' : 'rgba(255,255,255,0.1)'}`,
+                          background: i === history.length - 1 ? 'rgba(0,212,255,0.15)' : 'rgba(255,255,255,0.05)',
+                          border: `2px solid ${i === history.length - 1 ? 'var(--cyan)' : 'rgba(255,255,255,0.1)'}`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: 12, fontWeight: 700,
-                          color: i === history.owners.length - 1 ? 'var(--cyan)' : 'var(--text-secondary)',
+                          color: i === history.length - 1 ? 'var(--cyan)' : 'var(--text-secondary)',
                         }}>{i + 1}</div>
-                        {i < history.owners.length - 1 && (
-                          <div style={{ width: 1, height: 28, background: 'rgba(0,212,255,0.15)', margin: '4px 0' }} />
+                        {i < history.length - 1 && (
+                          <div style={{ width: 1, height: 32, background: 'rgba(0,212,255,0.15)', margin: '4px 0' }} />
                         )}
                       </div>
-                      <div style={{ paddingBottom: i < history.owners.length - 1 ? 0 : 0, paddingTop: 4, marginBottom: 8 }}>
-                        <p style={{ fontFamily: 'monospace', fontSize: 13, color: i === history.owners.length - 1 ? 'var(--cyan)' : 'var(--text-primary)', marginBottom: 2 }}>
-                          {owner}
-                        </p>
-                        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                          {new Date(Number(history.timestamps[i]) * 1000).toLocaleString()}
-                        </p>
+
+                      {/* ✅ Transfer struct fields: from, to, stage, timestamp, remarks */}
+                      <div style={{ paddingTop: 4, marginBottom: 12, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                          <span className={`badge ${STAGE_COLORS[Number(transfer.stage)] || 'badge-cyan'}`} style={{ fontSize: 11 }}>
+                            {STAGES[Number(transfer.stage)] || 'Unknown'}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                            {new Date(Number(transfer.timestamp) * 1000).toLocaleString()}
+                          </span>
+                        </div>
+                        {/* From → To */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                            {transfer.from === '0x0000000000000000000000000000000000000000'
+                              ? 'Created'
+                              : shortAddress(transfer.from)}
+                          </span>
+                          <span style={{ color: 'var(--text-secondary)' }}>→</span>
+                          <span style={{ fontFamily: 'monospace', color: i === history.length - 1 ? 'var(--cyan)' : 'var(--text-primary)' }}>
+                            {transfer.to === '0x0000000000000000000000000000000000000000'
+                              ? 'Consumer (Sold)'
+                              : shortAddress(transfer.to)}
+                          </span>
+                        </div>
+                        {/* Remarks */}
+                        {transfer.remarks && (
+                          <p style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                            "{transfer.remarks}"
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
           </motion.div>
         )}
       </div>

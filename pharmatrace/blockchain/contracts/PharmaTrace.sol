@@ -4,12 +4,13 @@ pragma solidity ^0.8.28;
 contract PharmaTrace {
 
     // ─── Enums ───────────────────────────────────────────────
-    enum Role { None, Admin, Manufacturer, Distributor, Retailer }
+    // ✅ Order matches frontend: 0=None, 1=Manufacturer, 2=Distributor, 3=Retailer, 4=Admin
+    enum Role { None, Manufacturer, Distributor, Retailer, Admin }
     enum Stage { Manufactured, ShippedToDistributor, AtDistributor, ShippedToRetailer, AtRetailer, Sold }
 
     // ─── Structs ─────────────────────────────────────────────
     struct Actor {
-        address wallet;
+        address wallet; // ✅ removed typo 'F'
         string name;
         Role role;
         bool exists;
@@ -68,13 +69,19 @@ contract PharmaTrace {
     // ─── Constructor ──────────────────────────────────────────
     constructor() {
         admin = msg.sender;
+        // ✅ Deployer auto-registered as Admin (role 4)
         actors[msg.sender] = Actor(msg.sender, "Admin", Role.Admin, true);
     }
 
     // ─── Actor Functions ──────────────────────────────────────
-    function registerActor(address _wallet, string memory _name, Role _role) public onlyAdmin {
+    function registerActor(
+        address _wallet,
+        string memory _name,
+        Role _role
+    ) public onlyAdmin {
+        require(_wallet != address(0), "Invalid wallet address");
         require(!actors[_wallet].exists, "Actor already registered");
-        require(_role != Role.None && _role != Role.Admin, "Invalid role");
+        require(_role != Role.None, "Invalid role"); // ✅ Admin CAN be registered
         actors[_wallet] = Actor(_wallet, _name, _role, true);
         emit ActorRegistered(_wallet, _name, _role);
     }

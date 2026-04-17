@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = '0x2DF376116C67BE1bC69e050149E6E98164BDa4Ea';
+export const CONTRACT_ADDRESS = '0xE2CADaFb51B7eBa36F663170eaba7f7821695e5A';
 export const EXPECTED_CHAIN_ID = 11155111;
 export const EXPECTED_CHAIN_HEX = '0xaa36a7';
 export const NETWORK_NAME = 'Sepolia';
@@ -18,36 +18,40 @@ export const CONTRACT_ABI = [
   "event ProductTransferred(uint256 indexed productId, address from, address to, uint8 stage, uint256 timestamp)"
 ];
 
+// ✅ Matches contract: enum Role { None, Manufacturer, Distributor, Retailer, Admin }
 export const ROLES = {
   0: 'Unregistered',
   1: 'Manufacturer',
   2: 'Distributor',
   3: 'Retailer',
-  4: 'Admin'
+  4: 'Admin',
 };
 
 export const ROLE_COLORS = {
-  0: 'badge-red',
-  1: 'badge-cyan',
-  2: 'badge-purple',
-  3: 'badge-green',
-  4: 'badge-red'
+  0: 'badge-red',      // Unregistered
+  1: 'badge-cyan',     // Manufacturer
+  2: 'badge-purple',   // Distributor
+  3: 'badge-green',    // Retailer
+  4: 'badge-yellow',   // ✅ Admin — distinct from Unregistered
 };
 
+// ✅ Matches contract: enum Stage { Manufactured, ShippedToDistributor, AtDistributor, ShippedToRetailer, AtRetailer, Sold }
 export const STAGES = {
   0: 'Manufactured',
-  1: 'In Transit',
+  1: 'Shipped to Distributor',  // ✅ was 'In Transit'
   2: 'At Distributor',
-  3: 'At Retailer',
-  4: 'Sold'
+  3: 'Shipped to Retailer',     // ✅ was 'At Retailer'
+  4: 'At Retailer',             // ✅ was 'Sold'
+  5: 'Sold',                    // ✅ missing entirely before
 };
 
 export const STAGE_COLORS = {
-  0: 'badge-cyan',
-  1: 'badge-purple',
-  2: 'badge-purple',
-  3: 'badge-green',
-  4: 'badge-red'
+  0: 'badge-cyan',    // Manufactured
+  1: 'badge-yellow',  // Shipped to Distributor
+  2: 'badge-purple',  // At Distributor
+  3: 'badge-yellow',  // Shipped to Retailer
+  4: 'badge-purple',  // At Retailer
+  5: 'badge-green',   // ✅ Sold
 };
 
 export const formatDate = (timestamp) => {
@@ -55,7 +59,7 @@ export const formatDate = (timestamp) => {
   return new Date(Number(timestamp) * 1000).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
-    day: 'numeric'
+    day: 'numeric',
   });
 };
 

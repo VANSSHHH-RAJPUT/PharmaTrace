@@ -1,13 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Package, Calendar, ArrowRight, Hash, Info } from 'lucide-react';
+import { Package, Calendar, ArrowRight, Hash, Info, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { formatDate, shortAddress } from '../utils/contract';
+import { formatDate, shortAddress, STAGES, STAGE_COLORS } from '../utils/contract';
 
 const ProductCard = ({ product, index, role, account, onTransfer }) => {
   const isOwner = product.currentOwner?.toLowerCase() === account?.toLowerCase();
   const isExpired = Number(product.expiryDate) * 1000 < Date.now();
-  const canTransfer = isOwner && (role === 1 || role === 2);
+  const canTransfer = isOwner && (role === 1 || role === 2); // ✅ Manufacturer or Distributor
 
   return (
     <motion.div
@@ -33,14 +33,15 @@ const ProductCard = ({ product, index, role, account, onTransfer }) => {
         }}>
           <Package size={20} />
         </div>
-        <span className={`badge ${isExpired ? 'badge-red' : 'badge-green'}`} style={{ fontSize: 11 }}>
-          {isExpired ? '● Expired' : '● Active'}
+        {/* ✅ Show current stage badge */}
+        <span className={`badge ${STAGE_COLORS[product.currentStage] || 'badge-cyan'}`} style={{ fontSize: 11 }}>
+          ● {STAGES[product.currentStage] || 'Manufactured'}
         </span>
       </div>
 
-      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>{product.name || 'Unknown'}</h3>
-      <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16, lineHeight: 1.5 }}>
-        {product.description || 'No description.'}
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>{product.name || 'Unknown'}</h3>
+      <p style={{ color: 'var(--text-secondary)', fontSize: 12, marginBottom: 16 }}>
+        By {product.manufacturerName || 'Unknown Manufacturer'}
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
@@ -48,7 +49,7 @@ const ProductCard = ({ product, index, role, account, onTransfer }) => {
           { icon: <Hash size={12} />, label: 'Batch', val: product.batchNumber, mono: true, color: 'var(--cyan)' },
           { icon: <Calendar size={12} />, label: 'Mfg', val: formatDate(product.manufactureDate) },
           { icon: <Calendar size={12} />, label: 'Exp', val: formatDate(product.expiryDate), danger: isExpired },
-          { icon: <Info size={12} />, label: 'Owner', val: shortAddress(product.currentOwner), mono: true },
+          { icon: <User size={12} />, label: 'Owner', val: shortAddress(product.currentOwner), mono: true },
         ].map(row => (
           <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
             <span style={{ color: 'var(--text-secondary)' }}>{row.icon}</span>

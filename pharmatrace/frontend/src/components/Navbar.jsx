@@ -14,11 +14,12 @@ const Navbar = ({ account, role, actorName, onConnect, onDisconnect, loading }) 
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // ✅ Admin link only shows when role === 4
   const navLinks = [
     { path: '/', label: 'Home', icon: <Activity size={14} /> },
     { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
     { path: '/verify', label: 'Verify', icon: <Search size={14} /> },
-    { path: '/admin', label: 'Admin', icon: <Settings size={14} /> },
+    ...(role === 4 ? [{ path: '/admin', label: 'Admin', icon: <Settings size={14} /> }] : []),
   ];
 
   return (

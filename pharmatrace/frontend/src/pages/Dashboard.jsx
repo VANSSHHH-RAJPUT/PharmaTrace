@@ -11,7 +11,9 @@ const Dashboard = ({ contract, account, role }) => {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [transferProduct, setTransferProduct] = useState(null);
-  const [form, setForm] = useState({ name: '', batchNumber: '', description: '', manufactureDate: '', expiryDate: '' });
+  const [form, setForm] = useState({
+    name: '', batchNumber: '', metadataHash: '', manufactureDate: '', expiryDate: ''
+  });
   const [msg, setMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -19,20 +21,30 @@ const Dashboard = ({ contract, account, role }) => {
     if (!contract) return;
     setLoading(true);
     try {
-      const count = await contract.productCount();
+      const count = await contract.getProductCount();
       const list = [];
       for (let i = 1; i <= Number(count); i++) {
         try {
           const p = await contract.getProduct(i);
           const isOwner = p.currentOwner?.toLowerCase() === account?.toLowerCase();
           if (role === 4 || isOwner) {
-            list.push({ id: i, name: p.name, batchNumber: p.batchNumber, currentOwner: p.currentOwner,
-              manufactureDate: p.manufactureDate, expiryDate: p.expiryDate, isActive: p.isActive, description: p.description });
+            list.push({
+              id: Number(p.id),
+              name: p.name,
+              batchNumber: p.batchNumber,
+              manufacturerName: p.manufacturerName,
+              manufactureDate: p.manufactureDate,
+              expiryDate: p.expiryDate,
+              currentOwner: p.currentOwner,
+              currentStage: Number(p.currentStage), // ✅ correct field
+              metadataHash: p.metadataHash,
+              exists: p.exists,
+            });
           }
         } catch (e) {}
       }
       setProducts(list);
-    } catch (e) {}
+    } catch (e) { console.error(e); }
     setLoading(false);
   };
 
@@ -45,14 +57,27 @@ const Dashboard = ({ contract, account, role }) => {
     try {
       const mfg = Math.floor(new Date(form.manufactureDate).getTime() / 1000);
       const exp = Math.floor(new Date(form.expiryDate).getTime() / 1000);
-      const tx = await contract.createProduct(form.name, form.batchNumber, mfg, exp, form.description);
+      const tx = await contract.createProduct(
+        form.name,
+        form.batchNumber,
+        mfg,
+        exp,
+        form.metadataHash || 'N/A' // ✅ metadataHash instead of description
+      );
       setMsg('⏳ Confirming transaction...');
       await tx.wait();
       setMsg('✅ Product created successfully!');
-      setForm({ name: '', batchNumber: '', description: '', manufactureDate: '', expiryDate: '' });
+      setForm({ name: '', batchNumber: '', metadataHash: '', manufactureDate: '', expiryDate: '' });
       setShowForm(false);
       loadProducts();
-    } catch (e) { setMsg('❌ ' + (e.reason || e.message)); }
+    } catch (e) {
+      if (e?.message?.includes('network changed')) {
+        setMsg('✅ Product likely created. Reloading...');
+        setTimeout(() => window.location.reload(), 2000);
+        return;
+      }
+      setMsg('❌ ' + (e.reason || e.message));
+    }
     setSubmitting(false);
   };
 
@@ -85,7 +110,7 @@ const Dashboard = ({ contract, account, role }) => {
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', fontSize: 14 }}>
               <RefreshCw size={14} className={loading ? 'spinner' : ''} /> Refresh
             </button>
-            {(role === 1) && (
+            {role === 1 && (
               <button onClick={() => setShowForm(!showForm)} className="btn-primary"
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', fontSize: 14 }}>
                 <Plus size={14} /> New Product
@@ -106,13 +131,13 @@ const Dashboard = ({ contract, account, role }) => {
               <div className="grid-2" style={{ marginBottom: 16 }}>
                 <div>
                   <label className="field-label">Product Name</label>
-                  <input className="input-field" placeholder="e.g. Paracetamol 500mg" value={form.name}
-                    onChange={e => setForm({ ...form, name: e.target.value })} required />
+                  <input className="input-field" placeholder="e.g. Paracetamol 500mg"
+                    value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
                 </div>
                 <div>
                   <label className="field-label">Batch Number</label>
-                  <input className="input-field" placeholder="e.g. BATCH-2026-001" value={form.batchNumber}
-                    onChange={e => setForm({ ...form, batchNumber: e.target.value })} required />
+                  <input className="input-field" placeholder="e.g. BATCH-2026-001"
+                    value={form.batchNumber} onChange={e => setForm({ ...form, batchNumber: e.target.value })} required />
                 </div>
                 <div>
                   <label className="field-label">Manufacture Date</label>
@@ -126,12 +151,19 @@ const Dashboard = ({ contract, account, role }) => {
                 </div>
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label className="field-label">Description</label>
-                <textarea className="input-field" rows={3} placeholder="Product description, ingredients, dosage..."
-                  value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
+                <label className="field-label">Metadata / Notes (optional)</label>
+                <textarea className="input-field" rows={3}
+                  placeholder="Ingredients, dosage, storage instructions..."
+                  value={form.metadataHash}
+                  onChange={e => setForm({ ...form, metadataHash: e.target.value })}
                   style={{ resize: 'vertical' }} />
               </div>
-              {msg && <p style={{ marginBottom: 14, fontSize: 13, color: msg.includes('✅') ? 'var(--green)' : msg.includes('⏳') ? 'var(--cyan)' : '#ff6b6b' }}>{msg}</p>}
+              {msg && (
+                <p style={{ marginBottom: 14, fontSize: 13,
+                  color: msg.includes('✅') ? 'var(--green)' : msg.includes('⏳') ? 'var(--cyan)' : '#ff6b6b' }}>
+                  {msg}
+                </p>
+              )}
               <div style={{ display: 'flex', gap: 12 }}>
                 <button type="submit" className="btn-green" disabled={submitting}
                   style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -158,23 +190,32 @@ const Dashboard = ({ contract, account, role }) => {
           ) : products.length === 0 ? (
             <div className="glass" style={{ padding: 48, textAlign: 'center' }}>
               <Package size={40} style={{ color: 'var(--text-secondary)', marginBottom: 12, opacity: 0.5 }} />
-              <p style={{ color: 'var(--text-secondary)' }}>No products found. Create one above.</p>
+              <p style={{ color: 'var(--text-secondary)' }}>
+                {role === 1 ? 'No products yet. Create one above.' : 'No products assigned to your wallet.'}
+              </p>
             </div>
           ) : (
             <div className="grid-3">
               {products.map((p, i) => (
-                <ProductCard key={p.id} product={p} index={i} role={role} account={account}
-                  onTransfer={() => setTransferProduct(p)} />
+                <ProductCard
+                  key={p.id} product={p} index={i} role={role} account={account}
+                  onTransfer={() => setTransferProduct(p)}
+                />
               ))}
             </div>
           )}
         </div>
       </div>
 
+      {/* ✅ Pass role to TransferModal */}
       {transferProduct && (
-        <TransferModal product={transferProduct} contract={contract}
+        <TransferModal
+          product={transferProduct}
+          contract={contract}
+          role={role}
           onClose={() => setTransferProduct(null)}
-          onSuccess={() => { setTransferProduct(null); loadProducts(); }} />
+          onSuccess={() => { setTransferProduct(null); loadProducts(); }}
+        />
       )}
     </div>
   );

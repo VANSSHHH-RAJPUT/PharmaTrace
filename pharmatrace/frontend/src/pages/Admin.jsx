@@ -4,33 +4,38 @@ import { UserPlus, Users, Shield } from 'lucide-react';
 import { ROLES, ROLE_COLORS } from '../utils/contract';
 
 const Admin = ({ contract, account }) => {
-  const [form, setForm] = useState({ wallet: '', role: 1, name: '' }); // ✅ role is NUMBER
+  const [form, setForm] = useState({ wallet: '', role: 1, name: '' });
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [lookupWallet, setLookupWallet] = useState('');
   const [lookedUp, setLookedUp] = useState(null);
   const [lookupMsg, setLookupMsg] = useState('');
 
-const handleRegister = async (e) => {
-  e.preventDefault();
-  if (!contract) return setMsg('Connect wallet first.');
-  setLoading(true); setMsg('');
-  try {
-    // ✅ Swap: name BEFORE role
-    const tx = await contract.registerActor(
-      form.wallet,
-      form.name,          // ✅ string first
-      Number(form.role)   // ✅ number second
-    );
-    setMsg('⏳ Submitting transaction...');
-    await tx.wait();
-    setMsg('✅ Actor registered successfully!');
-    setForm({ wallet: '', role: 1, name: '' });
-  } catch (e) {
-    setMsg('❌ ' + (e.reason || e.message || e.toString()));
-  }
-  setLoading(false);
-};
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if (!contract) return setMsg('Connect wallet first.');
+    setLoading(true); setMsg('');
+    try {
+      const tx = await contract.registerActor(
+        form.wallet,
+        form.name,
+        Number(form.role)
+      );
+      setMsg('⏳ Submitting transaction...');
+      await tx.wait();
+      setMsg('✅ Actor registered successfully!');
+      setForm({ wallet: '', role: 1, name: '' });
+    } catch (e) {
+      // ✅ Handle network-changed error gracefully
+      if (e?.message?.includes('network changed')) {
+        setMsg('✅ Transaction likely succeeded. Reloading to sync network...');
+        setTimeout(() => window.location.reload(), 2000);
+        return;
+      }
+      setMsg('❌ ' + (e.reason || e.message || e.toString()));
+    }
+    setLoading(false);
+  };
 
   const handleLookup = async () => {
     if (!contract) return setLookupMsg('❌ Connect wallet first.');
@@ -40,12 +45,13 @@ const handleRegister = async (e) => {
       const actor = await contract.getActor(lookupWallet);
       const role = Number(actor.role);
       const name = actor.name;
-      const isRegistered = actor.isRegistered;
-      if (!isRegistered) {
+      // ✅ Use 'exists' not 'isRegistered' — matches your ABI tuple field
+      const exists = actor.exists;
+      if (!exists) {
         setLookupMsg('⚠️ This wallet is not registered.');
         return;
       }
-      setLookedUp({ role, name, isRegistered });
+      setLookedUp({ role, name, exists });
     } catch (e) {
       setLookupMsg('❌ Actor not found or invalid address.');
     }
@@ -112,7 +118,6 @@ const handleRegister = async (e) => {
                 />
               </div>
 
-              {/* ✅ FIXED: onChange converts to Number */}
               <div>
                 <label className="field-label">Assign Role</label>
                 <select
@@ -237,8 +242,8 @@ const handleRegister = async (e) => {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ color: 'var(--text-secondary)', fontSize: 13, minWidth: 60 }}>Status</span>
-                  <span className={`badge ${lookedUp.isRegistered ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 12 }}>
-                    {lookedUp.isRegistered ? '● Registered' : '● Not Registered'}
+                  <span className={`badge ${lookedUp.exists ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 12 }}>
+                    {lookedUp.exists ? '● Registered' : '● Not Registered'}
                   </span>
                 </div>
 
