@@ -20,20 +20,21 @@ const Register = ({ contract, account, role, addToast, onConnect }) => {
   const [selectedRole, setSelectedRole] = useState(1);
   const [loading, setLoading] = useState(false);
   const [requestStatus, setRequestStatus] = useState(null);
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(false); // ← changed to false by default
 
   useEffect(() => {
-    if (contract && account) {
+    if (contract && account && Number(role) === 0) {
       checkExistingRequest();
-    } else {
-      setChecking(false);
     }
-  }, [contract, account]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contract, account, role]);
 
   const checkExistingRequest = async () => {
     setChecking(true);
     try {
-      const [, , status, exists] = await contract.getRegistrationRequest(account);
+      const result = await contract.getRegistrationRequest(account);
+      const exists = result[3];
+      const status = result[2];
       if (exists) {
         setRequestStatus(Number(status));
       } else {
@@ -52,7 +53,6 @@ const Register = ({ contract, account, role, addToast, onConnect }) => {
       addToast?.('Please connect wallet first', 'error');
       return;
     }
-
     setLoading(true);
     try {
       const tx = await contract.requestRegistration(companyName, selectedRole);
@@ -67,7 +67,8 @@ const Register = ({ contract, account, role, addToast, onConnect }) => {
     setLoading(false);
   };
 
-  if (role && Number(role) !== 0) {
+  // Already registered
+  if (Number(role) !== 0) {
     return (
       <div style={styles.container}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={styles.card}>
@@ -81,6 +82,7 @@ const Register = ({ contract, account, role, addToast, onConnect }) => {
     );
   }
 
+  // Not connected
   if (!account) {
     return (
       <div style={styles.container}>
@@ -94,48 +96,50 @@ const Register = ({ contract, account, role, addToast, onConnect }) => {
     );
   }
 
+  // Checking status — with timeout fallback
   if (checking) {
     return (
       <div style={styles.container}>
         <div style={styles.card}>
-          <p style={{ color: '#aaa' }}>Checking registration status...</p>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <span className="spinner" />
+            <p style={{ color: '#aaa', margin: 0 }}>Checking registration status...</p>
+            <button
+              onClick={() => setChecking(false)}
+              style={{ marginTop: 8, background: 'transparent', color: '#666', border: '1px solid #333', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
+            >
+              Skip
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
+  // Has existing request
   if (requestStatus !== null) {
     const currentStatus = STATUS[requestStatus];
     const Icon = currentStatus.icon;
-
     return (
       <div style={styles.container}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={styles.card}>
           <Icon size={48} color={currentStatus.color} style={{ marginBottom: 16 }} />
           <h2 style={{ ...styles.title, color: currentStatus.color }}>{currentStatus.label}</h2>
-
-          {requestStatus === 0 && (
-            <p style={styles.subtitle}>
-              Your registration request is being reviewed by the admin.
-            </p>
-          )}
-
-          {requestStatus === 1 && (
-            <p style={styles.subtitle}>
-              Your company has been approved. Reconnect your wallet if needed.
-            </p>
-          )}
-
-          {requestStatus === 2 && (
-            <p style={styles.subtitle}>
-              Your registration was rejected. Please contact the admin.
-            </p>
-          )}
+          {requestStatus === 0 && <p style={styles.subtitle}>Your registration request is being reviewed by the admin.</p>}
+          {requestStatus === 1 && <p style={styles.subtitle}>Your company has been approved! Reconnect your wallet to access your dashboard.</p>}
+          {requestStatus === 2 && <p style={styles.subtitle}>Your registration was rejected. Please contact the admin.</p>}
+          <button
+            onClick={checkExistingRequest}
+            style={{ marginTop: 16, background: 'transparent', color: '#6366f1', border: '1px solid #6366f1', padding: '8px 20px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}
+          >
+            🔄 Refresh Status
+          </button>
         </motion.div>
       </div>
     );
   }
 
+  // Registration form
   return (
     <div style={styles.container}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={styles.card}>
