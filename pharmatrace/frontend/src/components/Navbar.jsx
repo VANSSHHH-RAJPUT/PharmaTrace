@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Shield, Activity, LayoutDashboard, Search, Settings, Wallet, LogOut } from 'lucide-react';
+import { Shield, Activity, LayoutDashboard, Search, Settings, Wallet, LogOut, UserPlus } from 'lucide-react';
 import { ROLES, ROLE_COLORS, shortAddress } from '../utils/contract';
 
 const Navbar = ({ account, role, actorName, onConnect, onDisconnect, loading }) => {
@@ -14,11 +14,15 @@ const Navbar = ({ account, role, actorName, onConnect, onDisconnect, loading }) 
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // ✅ Admin link only shows when role === 4
   const navLinks = [
     { path: '/', label: 'Home', icon: <Activity size={14} /> },
     { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
     { path: '/verify', label: 'Verify', icon: <Search size={14} /> },
+
+    // Show Register only when: not connected OR connected but role is None (0)
+    ...(role === 0 ? [{ path: '/register', label: 'Register', icon: <UserPlus size={14} />, highlight: true }] : []),
+
+    // Show Admin only when role === 4
     ...(role === 4 ? [{ path: '/admin', label: 'Admin', icon: <Settings size={14} /> }] : []),
   ];
 
@@ -51,20 +55,33 @@ const Navbar = ({ account, role, actorName, onConnect, onDisconnect, loading }) 
         }}>PharmaTrace</span>
       </Link>
 
-      {/* Links */}
+      {/* Nav Links */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {navLinks.map(link => (
-          <Link key={link.path} to={link.path} style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '8px 16px', borderRadius: 8,
-            textDecoration: 'none', fontSize: 14, fontWeight: 500,
-            color: location.pathname === link.path ? '#00d4ff' : '#8892a4',
-            background: location.pathname === link.path ? 'rgba(0,212,255,0.1)' : 'transparent',
-            transition: 'all 0.2s',
-          }}>
-            {link.icon} {link.label}
-          </Link>
-        ))}
+        {navLinks.map(link => {
+          const isActive = location.pathname === link.path;
+          const isHighlight = link.highlight;
+          return (
+            <Link key={link.path} to={link.path} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 16px', borderRadius: 8,
+              textDecoration: 'none', fontSize: 14, fontWeight: 500,
+              color: isActive
+                ? (isHighlight ? '#a78bfa' : '#00d4ff')
+                : isHighlight
+                  ? 'rgba(167,139,250,0.8)'
+                  : '#8892a4',
+              background: isActive
+                ? (isHighlight ? 'rgba(124,58,237,0.15)' : 'rgba(0,212,255,0.1)')
+                : isHighlight
+                  ? 'rgba(124,58,237,0.08)'
+                  : 'transparent',
+              border: isHighlight && !isActive ? '1px solid rgba(124,58,237,0.25)' : '1px solid transparent',
+              transition: 'all 0.2s',
+            }}>
+              {link.icon} {link.label}
+            </Link>
+          );
+        })}
       </div>
 
       {/* Wallet */}
@@ -92,7 +109,7 @@ const Navbar = ({ account, role, actorName, onConnect, onDisconnect, loading }) 
         ) : (
           <button className="btn-primary" onClick={onConnect} disabled={loading}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', fontSize: 14 }}>
-            {loading ? <span className="spinner" /> : <><Wallet size={14} />Connect Wallet</>}
+            {loading ? <span className="spinner" /> : <><Wallet size={14} /> Connect Wallet</>}
           </button>
         )}
       </div>

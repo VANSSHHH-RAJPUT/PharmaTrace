@@ -4,15 +4,23 @@ pragma solidity ^0.8.28;
 contract PharmaTrace {
 
     // ─── Enums ───────────────────────────────────────────────
-    // ✅ Order matches frontend: 0=None, 1=Manufacturer, 2=Distributor, 3=Retailer, 4=Admin
     enum Role { None, Manufacturer, Distributor, Retailer, Admin }
     enum Stage { Manufactured, ShippedToDistributor, AtDistributor, ShippedToRetailer, AtRetailer, Sold }
+    enum RequestStatus { Pending, Approved, Rejected }
 
     // ─── Structs ─────────────────────────────────────────────
     struct Actor {
-        address wallet; // ✅ removed typo 'F'
+        address wallet;
         string name;
         Role role;
+        bool exists;
+    }
+
+    struct RegistrationRequest {
+        address wallet;
+        string companyName;
+        Role role;
+        RequestStatus status;
         bool exists;
     }
 
@@ -42,11 +50,17 @@ contract PharmaTrace {
     uint256 public productCount;
 
     mapping(address => Actor) public actors;
+    mapping(address => RegistrationRequest) public registrationRequests;
+    address[] public requestList;
+
     mapping(uint256 => Product) public products;
     mapping(uint256 => Transfer[]) public productHistory;
 
     // ─── Events ───────────────────────────────────────────────
     event ActorRegistered(address indexed wallet, string name, Role role);
+    event RegistrationRequested(address indexed wallet, string companyName, Role role);
+    event RegistrationApproved(address indexed wallet);
+    event RegistrationRejected(address indexed wallet);
     event ProductCreated(uint256 indexed productId, string name, string batchNumber, address manufacturer);
     event ProductTransferred(uint256 indexed productId, address from, address to, Stage stage, uint256 timestamp);
 
@@ -69,11 +83,70 @@ contract PharmaTrace {
     // ─── Constructor ──────────────────────────────────────────
     constructor() {
         admin = msg.sender;
-        // ✅ Deployer auto-registered as Admin (role 4)
         actors[msg.sender] = Actor(msg.sender, "Admin", Role.Admin, true);
     }
 
-    // ─── Actor Functions ──────────────────────────────────────
+    // ─── Registration Request Functions ───────────────────────
+
+    // Anyone can call this to request registration
+    function requestRegistration(string memory _companyName, Role _role) public {
+        require(_role != Role.None && _role != Role.Admin, "Invalid role");
+        require(!actors[msg.sender].exists, "Already registered");
+        require(!registrationRequests[msg.sender].exists, "Request already submitted");
+
+        registrationRequests[msg.sender] = RegistrationRequest(
+            msg.sender,
+            _companyName,
+            _role,
+            RequestStatus.Pending,
+            true
+        );
+        requestList.push(msg.sender);
+
+        emit RegistrationRequested(msg.sender, _companyName, _role);
+    }
+
+    // Admin approves a request → auto registers the actor
+    function approveRegistration(address _wallet) public onlyAdmin {
+        require(registrationRequests[_wallet].exists, "No request found");
+        require(registrationRequests[_wallet].status == RequestStatus.Pending, "Already processed");
+
+        registrationRequests[_wallet].status = RequestStatus.Approved;
+
+        RegistrationRequest memory req = registrationRequests[_wallet];
+        actors[_wallet] = Actor(_wallet, req.companyName, req.role, true);
+
+        emit RegistrationApproved(_wallet);
+        emit ActorRegistered(_wallet, req.companyName, req.role);
+    }
+
+    // Admin rejects a request
+    function rejectRegistration(address _wallet) public onlyAdmin {
+        require(registrationRequests[_wallet].exists, "No request found");
+        require(registrationRequests[_wallet].status == RequestStatus.Pending, "Already processed");
+
+        registrationRequests[_wallet].status = RequestStatus.Rejected;
+
+        emit RegistrationRejected(_wallet);
+    }
+
+    // Get all request addresses
+    function getRequestList() public view returns (address[] memory) {
+        return requestList;
+    }
+
+    // Get a single request details
+    function getRegistrationRequest(address _wallet) public view returns (
+        string memory companyName,
+        uint8 role,
+        uint8 status,
+        bool exists
+    ) {
+        RegistrationRequest memory r = registrationRequests[_wallet];
+        return (r.companyName, uint8(r.role), uint8(r.status), r.exists);
+    }
+
+    // ─── Actor Functions (kept for manual admin registration) ─
     function registerActor(
         address _wallet,
         string memory _name,
@@ -81,7 +154,7 @@ contract PharmaTrace {
     ) public onlyAdmin {
         require(_wallet != address(0), "Invalid wallet address");
         require(!actors[_wallet].exists, "Actor already registered");
-        require(_role != Role.None, "Invalid role"); // ✅ Admin CAN be registered
+        require(_role != Role.None, "Invalid role");
         actors[_wallet] = Actor(_wallet, _name, _role, true);
         emit ActorRegistered(_wallet, _name, _role);
     }
