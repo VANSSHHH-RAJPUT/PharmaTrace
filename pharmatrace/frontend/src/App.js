@@ -6,6 +6,7 @@ import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Verify from './pages/Verify';
 import Admin from './pages/Admin';
+import Register from './pages/Register';
 import AnimatedBackground from './components/AnimatedBackground';
 import IntroLoader from './components/IntroLoader';
 import Toast, { useToast } from './components/Toast';
@@ -29,6 +30,12 @@ function App() {
   const [introComplete, setIntroComplete] = useState(false);
   const [wrongNetwork, setWrongNetwork] = useState(false);
   const { toasts, addToast, removeToast } = useToast();
+
+  // ✅ Fallback: force intro complete after 4 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => setIntroComplete(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!window.ethereum) return;
@@ -94,10 +101,19 @@ function App() {
         const actor = await ct.getActor(address);
         setRole(Number(actor.role));
         setActorName(actor.name);
-        addToast(`Connected as ${actor.name || address.slice(0,6)}`, 'success');
+        if (Number(actor.role) === 0) {
+          const [, , reqStatus, reqExists] = await ct.getRegistrationRequest(address);
+          if (reqExists && Number(reqStatus) === 0) {
+            addToast('Registration pending admin approval', 'pending');
+          } else {
+            addToast('Wallet connected — not registered as actor', 'pending');
+          }
+        } else {
+          addToast(`Connected as ${actor.name || address.slice(0, 6)}`, 'success');
+        }
       } catch (e) {
         setRole(0); setActorName('');
-        addToast('Wallet connected — not registered as actor', 'pending');
+        addToast('Wallet connected', 'pending');
       }
     } catch (e) {
       console.error(e);
@@ -123,7 +139,6 @@ function App() {
         <div className="bg-grid" />
         <AnimatedBackground />
 
-        {/* Wrong network banner */}
         {wrongNetwork && (
           <motion.div initial={{ y: -60 }} animate={{ y: 0 }} style={{
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 999,
@@ -156,6 +171,9 @@ function App() {
               <Dashboard contract={contract} account={account} role={role} addToast={addToast} />
             } />
             <Route path="/verify" element={<Verify contract={contract} addToast={addToast} />} />
+            <Route path="/register" element={
+              <Register contract={contract} account={account} role={role} addToast={addToast} onConnect={connectWallet} />
+            } />
             <Route path="/admin" element={
               <ProtectedAdminRoute account={account} role={role}>
                 <Admin contract={contract} account={account} addToast={addToast} />
@@ -164,7 +182,6 @@ function App() {
           </Routes>
         </div>
 
-        {/* Global toast */}
         <Toast toasts={toasts} removeToast={removeToast} />
       </motion.div>
     </Router>
