@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#fbf8f1"/>
+  <g transform="rotate(-35 32 32)">
+    <rect x="8" y="21" width="48" height="22" rx="11" fill="#ffcf3f"/>
+    <path d="M32 21H19a11 11 0 0 0 0 22h13z" fill="#2b44ff"/>
+    <rect x="8" y="21" width="48" height="22" rx="11" fill="none" stroke="#15131a" stroke-width="3.5"/>
+    <path d="M32 21v22" stroke="#15131a" stroke-width="3.5"/>
+  </g>
+</svg>
