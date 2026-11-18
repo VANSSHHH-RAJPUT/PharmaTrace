@@ -1,119 +1,59 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Shield, Activity, LayoutDashboard, Search, Settings, Wallet, LogOut, UserPlus } from 'lucide-react';
-import { ROLES, ROLE_COLORS, shortAddress } from '../utils/contract';
+import { Wallet, LogOut } from 'lucide-react';
+import { shortAddress } from '../utils/contract';
+
+const ROLE_BADGE = {
+  1: { label: 'Manufacturer', cls: 'badge-cyan' },
+  2: { label: 'Distributor', cls: 'badge-purple' },
+  3: { label: 'Pharmacy', cls: 'badge-green' },
+  4: { label: 'Protocol Admin', cls: 'badge-yellow' },
+};
 
 const Navbar = ({ account, role, actorName, onConnect, onDisconnect, loading }) => {
-  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
   const navLinks = [
-    { path: '/', label: 'Home', icon: <Activity size={14} /> },
-    { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
-    { path: '/verify', label: 'Verify', icon: <Search size={14} /> },
-
-    // Show Register only when: not connected OR connected but role is None (0)
-    ...(role === 0 ? [{ path: '/register', label: 'Register', icon: <UserPlus size={14} />, highlight: true }] : []),
-
-    // Show Admin only when role === 4
-    ...(role === 4 ? [{ path: '/admin', label: 'Admin', icon: <Settings size={14} /> }] : []),
+    { path: '/', label: 'Overview' },
+    { path: '/dashboard', label: 'Inventory Ledger' },
+    { path: '/verify', label: 'Verify Batch' },
+    ...(role === 0 ? [{ path: '/register', label: 'Register Org', highlight: true }] : []),
+    ...(role === 4 ? [{ path: '/admin', label: 'Governance' }] : []),
   ];
+  const roleInfo = ROLE_BADGE[role] || { label: 'Unregistered', cls: 'badge-zinc' };
 
   return (
-    <motion.nav
-      initial={{ y: -100 }} animate={{ y: 0 }}
-      style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-        padding: '0 32px', height: 72,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: scrolled ? 'rgba(2,8,23,0.95)' : 'transparent',
-        backdropFilter: scrolled ? 'blur(20px)' : 'none',
-        borderBottom: scrolled ? '1px solid rgba(0,212,255,0.1)' : 'none',
-        transition: 'all 0.3s ease',
-      }}
-    >
-      {/* Logo */}
-      <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{
-          width: 36, height: 36,
-          background: 'linear-gradient(135deg, #00d4ff, #7c3aed)',
-          borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Shield size={18} color="#fff" />
-        </div>
-        <span style={{
-          fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 20,
-          background: 'linear-gradient(135deg, #00d4ff, #a78bfa)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-        }}>PharmaTrace</span>
-      </Link>
-
-      {/* Nav Links */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {navLinks.map(link => {
-          const isActive = location.pathname === link.path;
-          const isHighlight = link.highlight;
-          return (
-            <Link key={link.path} to={link.path} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 16px', borderRadius: 8,
-              textDecoration: 'none', fontSize: 14, fontWeight: 500,
-              color: isActive
-                ? (isHighlight ? '#a78bfa' : '#00d4ff')
-                : isHighlight
-                  ? 'rgba(167,139,250,0.8)'
-                  : '#8892a4',
-              background: isActive
-                ? (isHighlight ? 'rgba(124,58,237,0.15)' : 'rgba(0,212,255,0.1)')
-                : isHighlight
-                  ? 'rgba(124,58,237,0.08)'
-                  : 'transparent',
-              border: isHighlight && !isActive ? '1px solid rgba(124,58,237,0.25)' : '1px solid transparent',
-              transition: 'all 0.2s',
-            }}>
-              {link.icon} {link.label}
+    <nav className="app-nav" aria-label="Main">
+      <div className="left">
+        <Link to="/" className="brand"><span className="logo-cap"><i /><i /></span> PharmaTrace</Link>
+        <div className="links">
+          {navLinks.map((l) => (
+            <Link key={l.path} to={l.path} className={location.pathname === l.path ? 'active' : ''}>
+              {l.label}{l.highlight && <i className="hi" />}
             </Link>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
-      {/* Wallet */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="right">
+        <span className="net"><span className="pulse-beacon pulse-beacon-green" /> Sepolia</span>
         {account ? (
           <>
-            <span className={`badge ${ROLE_COLORS[role] || 'badge-cyan'}`}>{ROLES[role]}</span>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 16px',
-              background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.2)',
-              borderRadius: 10, fontSize: 13, color: '#00d4ff', fontWeight: 500,
-            }}>
-              <Wallet size={13} />
-              {actorName || shortAddress(account)}
+            <div className="wallet" title={actorName || ''}>
+              <span className={`badge ${roleInfo.cls}`}>{roleInfo.label}</span>
+              <span className="font-mono">{shortAddress(account)}</span>
             </div>
-            <button onClick={onDisconnect} style={{
-              background: 'rgba(255,59,59,0.1)', border: '1px solid rgba(255,59,59,0.3)',
-              color: '#ff6b6b', padding: '8px 12px', borderRadius: 8,
-              cursor: 'pointer', display: 'flex', alignItems: 'center',
-            }}>
+            <button type="button" className="off" onClick={onDisconnect} aria-label="Disconnect wallet" title="Disconnect wallet">
               <LogOut size={14} />
             </button>
           </>
         ) : (
-          <button className="btn-primary" onClick={onConnect} disabled={loading}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', fontSize: 14 }}>
-            {loading ? <span className="spinner" /> : <><Wallet size={14} /> Connect Wallet</>}
+          <button type="button" onClick={onConnect} disabled={loading} className="btn-primary">
+            <Wallet size={14} />
+            {loading ? 'Connecting...' : 'Connect Wallet'}
           </button>
         )}
       </div>
-    </motion.nav>
+    </nav>
   );
 };
 

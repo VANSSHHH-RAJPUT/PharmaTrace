@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, CheckCircle, XCircle, Clock, Wallet } from 'lucide-react';
+import { Building2, CheckCircle2, XCircle, Clock, Wallet, ArrowRight } from 'lucide-react';
 import { ROLES } from '../utils/contract';
 
 const ROLE_OPTIONS = [
-  { value: 1, label: 'Manufacturer' },
-  { value: 2, label: 'Distributor' },
-  { value: 3, label: 'Retailer' },
+  { value: 1, label: 'Manufacturer', desc: 'Mint original digital twins and serialize medicine batches on-chain' },
+  { value: 2, label: 'Wholesaler / 3PL Carrier', desc: 'Sign verifiable cold-chain custody handshakes and dispatch inventory' },
+  { value: 3, label: 'Dispensing Pharmacy / Hospital', desc: 'Verify genuine manufacturer origin and record permanent patient dispensation' },
 ];
 
 const STATUS = {
-  0: { label: 'Pending Approval', color: '#f59e0b', icon: Clock },
-  1: { label: 'Approved', color: '#10b981', icon: CheckCircle },
-  2: { label: 'Rejected', color: '#ef4444', icon: XCircle },
+  0: { label: 'Pending Review', color: '#a35a00', icon: Clock, desc: 'Your registration request has been submitted to the protocol administrator on Ethereum Sepolia.' },
+  1: { label: 'Organization Approved', color: '#0d7a4d', icon: CheckCircle2, desc: 'Your organization is approved! Reconnect or refresh your wallet to start operations.' },
+  2: { label: 'Application Rejected', color: '#d62a4a', icon: XCircle, desc: 'Your registration was not approved. Please consult the network governance authority.' },
 };
 
 const Register = ({ contract, account, role, addToast, onConnect }) => {
@@ -20,16 +20,10 @@ const Register = ({ contract, account, role, addToast, onConnect }) => {
   const [selectedRole, setSelectedRole] = useState(1);
   const [loading, setLoading] = useState(false);
   const [requestStatus, setRequestStatus] = useState(null);
-  const [checking, setChecking] = useState(false); // ← changed to false by default
+  const [checking, setChecking] = useState(false);
 
-  useEffect(() => {
-    if (contract && account && Number(role) === 0) {
-      checkExistingRequest();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contract, account, role]);
-
-  const checkExistingRequest = async () => {
+  const checkExistingRequest = useCallback(async () => {
+    if (!contract || !account) return;
     setChecking(true);
     try {
       const result = await contract.getRegistrationRequest(account);
@@ -45,21 +39,27 @@ const Register = ({ contract, account, role, addToast, onConnect }) => {
       setRequestStatus(null);
     }
     setChecking(false);
-  };
+  }, [contract, account]);
+
+  useEffect(() => {
+    if (contract && account && Number(role) === 0) {
+      checkExistingRequest();
+    }
+  }, [contract, account, role, checkExistingRequest]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!contract) {
-      addToast?.('Please connect wallet first', 'error');
+      addToast?.('Please connect MetaMask wallet first', 'error');
       return;
     }
     setLoading(true);
     try {
       const tx = await contract.requestRegistration(companyName, selectedRole);
-      addToast?.('Transaction submitted, waiting for confirmation...', 'pending');
+      addToast?.('Submitting registration request on Sepolia...', 'pending', 12000);
       await tx.wait();
       setRequestStatus(0);
-      addToast?.('Registration request submitted!', 'success');
+      addToast?.('Registration request submitted for review! ✅', 'success');
     } catch (err) {
       console.error(err);
       addToast?.(err.reason || err.message || 'Transaction failed', 'error');
@@ -67,197 +67,159 @@ const Register = ({ contract, account, role, addToast, onConnect }) => {
     setLoading(false);
   };
 
-  // Already registered
   if (Number(role) !== 0) {
     return (
-      <div style={styles.container}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={styles.card}>
-          <CheckCircle size={48} color="#10b981" style={{ marginBottom: 16 }} />
-          <h2 style={styles.title}>Already Registered</h2>
-          <p style={styles.subtitle}>
-            Your wallet is registered as <strong>{ROLES[role] || 'Actor'}</strong>.
+      <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: 20 }}>
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="glass-panel" style={{ padding: 40, maxWidth: 460, textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(13, 122, 77, 0.15)', border: '1px solid rgba(13, 122, 77, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+            <CheckCircle2 size={32} color="#0d7a4d" />
+          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>Authorized Organization</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, margin: '0 0 20px' }}>
+            Your wallet is cryptographically authorized as a verified <strong>{ROLES[role] || 'Stakeholder'}</strong>. You have full operational access to the protocol.
           </p>
+          <a href="/dashboard" className="btn-emerald" style={{ padding: '10px 22px', fontSize: 13 }}>
+            Open Inventory Ledger <ArrowRight size={14} />
+          </a>
         </motion.div>
       </div>
     );
   }
 
-  // Not connected
   if (!account) {
     return (
-      <div style={styles.container}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={styles.card}>
-          <Wallet size={48} color="#6366f1" style={{ marginBottom: 16 }} />
-          <h2 style={styles.title}>Connect Your Wallet</h2>
-          <p style={styles.subtitle}>Please connect your MetaMask wallet to register your company.</p>
-          <button onClick={onConnect} style={styles.btnPrimary}>Connect MetaMask</button>
+      <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: 20 }}>
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="glass-panel" style={{ padding: 40, maxWidth: 440, textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(43, 68, 255, 0.15)', border: '1px solid rgba(43, 68, 255, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+            <Wallet size={28} color="#2b44ff" />
+          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>Connect Wallet Required</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, marginBottom: 24 }}>
+            Please connect your Ethereum wallet to enroll your pharmaceutical enterprise in the custody protocol.
+          </p>
+          <button onClick={onConnect} className="btn-primary" style={{ width: '100%', padding: '11px', fontSize: 13 }}>
+            Connect MetaMask Wallet
+          </button>
         </motion.div>
       </div>
     );
   }
 
-  // Checking status — with timeout fallback
   if (checking) {
     return (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-            <span className="spinner" />
-            <p style={{ color: '#aaa', margin: 0 }}>Checking registration status...</p>
-            <button
-              onClick={() => setChecking(false)}
-              style={{ marginTop: 8, background: 'transparent', color: '#666', border: '1px solid #333', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
-            >
-              Skip
-            </button>
-          </div>
+      <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
+        <div className="glass-panel" style={{ padding: 36, textAlign: 'center' }}>
+          <span className="pulse-beacon pulse-beacon-cyan" style={{ marginBottom: 16 }} />
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '12px 0 0' }}>Checking on-chain credentials...</p>
         </div>
       </div>
     );
   }
 
-  // Has existing request
   if (requestStatus !== null) {
     const currentStatus = STATUS[requestStatus];
     const Icon = currentStatus.icon;
     return (
-      <div style={styles.container}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={styles.card}>
-          <Icon size={48} color={currentStatus.color} style={{ marginBottom: 16 }} />
-          <h2 style={{ ...styles.title, color: currentStatus.color }}>{currentStatus.label}</h2>
-          {requestStatus === 0 && <p style={styles.subtitle}>Your registration request is being reviewed by the admin.</p>}
-          {requestStatus === 1 && <p style={styles.subtitle}>Your company has been approved! Reconnect your wallet to access your dashboard.</p>}
-          {requestStatus === 2 && <p style={styles.subtitle}>Your registration was rejected. Please contact the admin.</p>}
-          <button
-            onClick={checkExistingRequest}
-            style={{ marginTop: 16, background: 'transparent', color: '#6366f1', border: '1px solid #6366f1', padding: '8px 20px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}
-          >
-            🔄 Refresh Status
+      <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: 20 }}>
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="glass-panel" style={{ padding: 40, maxWidth: 460, textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: `${currentStatus.color}20`, border: `1px solid ${currentStatus.color}60`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+            <Icon size={30} color={currentStatus.color} />
+          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>{currentStatus.label}</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, margin: '0 0 24px' }}>
+            {currentStatus.desc}
+          </p>
+          <button onClick={checkExistingRequest} className="btn-outline" style={{ padding: '9px 20px', fontSize: 13 }}>
+            Refresh On-Chain Status
           </button>
         </motion.div>
       </div>
     );
   }
 
-  // Registration form
   return (
-    <div style={styles.container}>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={styles.card}>
-        <Building2 size={40} color="#6366f1" style={{ marginBottom: 16 }} />
-        <h2 style={styles.title}>Register Your Company</h2>
-        <p style={styles.subtitle}>
-          Submit a registration request. The admin will review and approve your company.
-        </p>
+    <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: '40px 20px' }}>
+      <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="glass-panel" style={{ padding: 36, maxWidth: 520, width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, paddingBottom: 18, borderBottom: '1px solid rgba(21, 19, 26, 0.08)' }}>
+          <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(13, 122, 77, 0.15)', border: '1px solid rgba(13, 122, 77, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Building2 size={22} color="#0d7a4d" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: 19, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Register Organization</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '2px 0 0' }}>Enroll as a verified actor on the PharmaTrace Network</p>
+          </div>
+        </div>
 
-        <form onSubmit={handleSubmit} style={{ width: '100%', marginTop: 24 }}>
-          <div style={styles.field}>
-            <label style={styles.label}>Company Name</label>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 18 }}>
+            <label className="field-label">Legal Corporate Entity Name</label>
             <input
               type="text"
+              className="input-field"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="e.g. MediCure Pharmaceuticals"
+              placeholder="e.g. Pfizer Global Logistics LLC"
               required
-              style={styles.input}
             />
           </div>
 
-          <div style={styles.field}>
-            <label style={styles.label}>Role</label>
-            <div style={styles.roleGrid}>
-              {ROLE_OPTIONS.map((item) => (
-                <div
-                  key={item.value}
-                  onClick={() => setSelectedRole(item.value)}
-                  style={{
-                    ...styles.roleCard,
-                    border: selectedRole === item.value ? '2px solid #6366f1' : '2px solid #333',
-                    background: selectedRole === item.value ? 'rgba(99,102,241,0.15)' : '#1a1a2e',
-                  }}
-                >
-                  <span style={{ color: selectedRole === item.value ? '#6366f1' : '#aaa', fontWeight: 600 }}>
-                    {item.label}
-                  </span>
-                </div>
-              ))}
+          <div style={{ marginBottom: 22 }}>
+            <label className="field-label">Select Supply Chain Role</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {ROLE_OPTIONS.map((item) => {
+                const isSelected = selectedRole === item.value;
+                return (
+                  <div
+                    key={item.value}
+                    onClick={() => setSelectedRole(item.value)}
+                    style={{
+                      background: isSelected ? 'rgba(13, 122, 77, 0.12)' : 'rgba(21, 19, 26, 0.02)',
+                      border: isSelected ? '1px solid rgba(13, 122, 77, 0.45)' : '1px solid rgba(21, 19, 26, 0.08)',
+                      borderRadius: 10,
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      transition: 'all 0.18s ease',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        border: isSelected ? '5px solid #34d399' : '2px solid #64748b',
+                        marginTop: 2,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        {item.desc}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-
-          <div style={{ ...styles.field, background: 'rgba(99,102,241,0.08)', borderRadius: 8, padding: 12 }}>
-            <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>
-              Wallet: <span style={{ color: '#fff', fontFamily: 'monospace' }}>
-                {account.slice(0, 6)}...{account.slice(-4)}
-              </span>
-            </p>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            style={{ ...styles.btnPrimary, marginTop: 8, opacity: loading ? 0.7 : 1 }}
+            className="btn-emerald"
+            style={{ width: '100%', padding: '12px 0', fontSize: 13 }}
           >
-            {loading ? 'Submitting...' : 'Submit Registration Request'}
+            {loading ? 'Submitting Request on Sepolia...' : 'Submit Enrollment Request'}
           </button>
         </form>
       </motion.div>
     </div>
   );
-};
-
-const styles = {
-  container: {
-    minHeight: '80vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '120px 16px 40px',
-  },
-  card: {
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 20,
-    padding: 40,
-    maxWidth: 500,
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    backdropFilter: 'blur(12px)',
-  },
-  title: { fontSize: 24, fontWeight: 700, color: '#fff', marginBottom: 8, textAlign: 'center' },
-  subtitle: { fontSize: 14, color: '#aaa', textAlign: 'center', lineHeight: 1.6, marginBottom: 8 },
-  field: { marginBottom: 20, width: '100%' },
-  label: { display: 'block', marginBottom: 8, color: '#ccc', fontSize: 14, fontWeight: 600 },
-  input: {
-    width: '100%',
-    padding: '12px 16px',
-    borderRadius: 10,
-    border: '1px solid #333',
-    background: '#0f0f1a',
-    color: '#fff',
-    fontSize: 14,
-    outline: 'none',
-    boxSizing: 'border-box',
-  },
-  roleGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 },
-  roleCard: {
-    padding: '14px 8px',
-    borderRadius: 10,
-    textAlign: 'center',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  btnPrimary: {
-    width: '100%',
-    padding: '14px',
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 10,
-    fontSize: 15,
-    fontWeight: 700,
-    cursor: 'pointer',
-  },
 };
 
 export default Register;

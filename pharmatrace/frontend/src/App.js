@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ethers } from 'ethers';
 import Navbar from './components/Navbar';
-import Landing from './pages/Landing';
+import Landing from './pages/Showcase';
 import Dashboard from './pages/Dashboard';
 import Verify from './pages/Verify';
 import Admin from './pages/Admin';
@@ -31,9 +31,8 @@ function App() {
   const [wrongNetwork, setWrongNetwork] = useState(false);
   const { toasts, addToast, removeToast } = useToast();
 
-  // ✅ Fallback: force intro complete after 4 seconds
   useEffect(() => {
-    const timer = setTimeout(() => setIntroComplete(true), 4000);
+    const timer = setTimeout(() => setIntroComplete(true), 400);
     return () => clearTimeout(timer);
   }, []);
 
@@ -106,7 +105,7 @@ function App() {
           if (reqExists && Number(reqStatus) === 0) {
             addToast('Registration pending admin approval', 'pending');
           } else {
-            addToast('Wallet connected — not registered as actor', 'pending');
+            addToast('Wallet connected — unregistered organization', 'pending');
           }
         } else {
           addToast(`Connected as ${actor.name || address.slice(0, 6)}`, 'success');
@@ -132,35 +131,33 @@ function App() {
       {!introComplete && <IntroLoader onComplete={() => setIntroComplete(true)} />}
       <motion.div
         initial={{ opacity: 0 }}
-        animate={{ opacity: introComplete ? 1 : 0 }}
-        transition={{ duration: 1 }}
-        style={{ pointerEvents: introComplete ? 'all' : 'none' }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
       >
-        <div className="bg-grid" />
         <AnimatedBackground />
 
         {wrongNetwork && (
-          <motion.div initial={{ y: -60 }} animate={{ y: 0 }} style={{
+          <div style={{
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 999,
-            background: 'rgba(245,158,11,0.95)', backdropFilter: 'blur(10px)',
-            padding: '12px 24px', display: 'flex', alignItems: 'center',
+            background: 'rgba(245, 158, 11, 0.95)', backdropFilter: 'blur(10px)',
+            padding: '10px 24px', display: 'flex', alignItems: 'center',
             justifyContent: 'center', gap: 12,
           }}>
-            <AlertTriangle size={16} color="#000" />
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#000' }}>
-              Wrong network. Please switch to {NETWORK_NAME}.
+            <AlertTriangle size={15} color="#000" />
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#000' }}>
+              Connected to unsupported network. Please switch to {NETWORK_NAME}.
             </span>
             <button onClick={switchToSepolia} style={{
-              background: '#000', color: '#f59e0b', border: 'none',
-              padding: '6px 16px', borderRadius: 6, cursor: 'pointer',
-              fontSize: 13, fontWeight: 700,
+              background: '#000', color: '#fbbf24', border: 'none',
+              padding: '4px 14px', borderRadius: 4, cursor: 'pointer',
+              fontSize: 12, fontWeight: 600,
             }}>
-              Switch to {NETWORK_NAME}
+              Switch Network
             </button>
-          </motion.div>
+          </div>
         )}
 
-        <div className="content" style={{ paddingTop: wrongNetwork ? 48 : 0 }}>
+        <div className="content" style={{ paddingTop: wrongNetwork ? 104 : 64 }}>
           <Navbar
             account={account} role={role} actorName={actorName}
             onConnect={connectWallet} onDisconnect={disconnect} loading={loading}

@@ -1,145 +1,119 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, ArrowRight, AlertTriangle, ExternalLink } from 'lucide-react';
+import { X, Send, AlertCircle } from 'lucide-react';
 import { STAGES } from '../utils/contract';
 
-const TransferModal = ({ product, contract, onClose, onSuccess, role, addToast }) => {
+const TransferModal = ({ product, onClose, onTransfer, submitting }) => {
   const [toAddress, setToAddress] = useState('');
+  const [stage, setStage] = useState(product ? (product.currentStage + 1 <= 4 ? product.currentStage + 1 : 4) : 1);
   const [remarks, setRemarks] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState('');
-  const [txHash, setTxHash] = useState('');
 
-  const getNextStage = () => {
-    if (role === 1) return 1;
-    if (role === 2) return 3;
-    return 1;
-  };
+  if (!product) return null;
 
-  const getNextStageLabel = () => {
-    if (role === 1) return 'Shipped to Distributor';
-    if (role === 2) return 'Shipped to Retailer';
-    return '';
-  };
-
-  const handleTransfer = async () => {
-    if (!toAddress || !toAddress.startsWith('0x') || toAddress.length !== 42) {
-      return setMsg('❌ Please enter a valid 42-character Ethereum address.');
-    }
-    setLoading(true); setMsg(''); setTxHash('');
-    try {
-      const tx = await contract.transferProduct(
-        product.id,
-        toAddress,
-        getNextStage(),
-        remarks.trim() || getNextStageLabel()
-      );
-      setMsg('⏳ Submitting transaction...');
-      addToast?.('Transaction submitted...', 'pending', 10000);
-      const receipt = await tx.wait();
-      const hash = receipt.hash;
-      setTxHash(hash);
-      setMsg('✅ Transfer successful!');
-      addToast?.('Product transferred successfully!', 'success');
-      setTimeout(onSuccess, 2000);
-    } catch (e) {
-      if (e?.message?.includes('network changed')) {
-        setMsg('✅ Transfer likely succeeded. Reloading...');
-        setTimeout(() => window.location.reload(), 2000);
-        return;
-      }
-      const err = e.reason || e.message || 'Transaction failed';
-      setMsg('❌ ' + err);
-      addToast?.(err, 'error');
-    }
-    setLoading(false);
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!toAddress) return;
+    onTransfer(product.id, toAddress, Number(stage), remarks || 'Custody handoff executed via PharmaTrace');
   };
 
   return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-    }}>
+    <div className="modal-overlay" onClick={onClose}>
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        className="glass" style={{ width: '100%', maxWidth: 460, padding: 32 }}
-        onClick={e => e.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="modal-card"
+        onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <h3 style={{ fontSize: 20, fontWeight: 600 }}>Transfer Product</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Product info */}
-        <div style={{
-          background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)',
-          borderRadius: 10, padding: 16, marginBottom: 20,
-        }}>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 12, marginBottom: 4 }}>Transferring</p>
-          <p style={{ fontWeight: 600 }}>{product.name}</p>
-          <p style={{ fontSize: 12, color: 'var(--cyan)', fontFamily: 'monospace' }}>{product.batchNumber}</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '3px 8px', borderRadius: 4 }}>
-              {STAGES[product.currentStage] || 'Manufactured'}
-            </span>
-            <ArrowRight size={12} color="var(--cyan)" />
-            <span style={{ fontSize: 11, color: 'var(--cyan)', background: 'rgba(0,212,255,0.1)', padding: '3px 8px', borderRadius: 4 }}>
-              {getNextStageLabel()}
-            </span>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <label className="field-label">Recipient Wallet Address</label>
-          <input className="input-field" placeholder="0x..." value={toAddress}
-            onChange={e => setToAddress(e.target.value)} />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <label className="field-label">Remarks (optional)</label>
-          <input className="input-field" placeholder={getNextStageLabel()}
-            value={remarks} onChange={e => setRemarks(e.target.value)} />
-        </div>
-
-        <div style={{
-          display: 'flex', gap: 8, alignItems: 'flex-start',
-          background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
-          borderRadius: 8, padding: 12, marginBottom: 20,
-        }}>
-          <AlertTriangle size={14} color="#f59e0b" style={{ marginTop: 1, flexShrink: 0 }} />
-          <p style={{ fontSize: 12, color: '#f59e0b', lineHeight: 1.5 }}>
-            This action is permanent and cannot be undone. Verify the recipient address.
-          </p>
-        </div>
-
-        {msg && (
-          <div style={{ marginBottom: 14 }}>
-            <p style={{ fontSize: 13, color: msg.includes('✅') ? 'var(--green)' : msg.includes('⏳') ? 'var(--cyan)' : '#ff6b6b' }}>
-              {msg}
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(21, 19, 26, 0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+              Transfer Custody Handoff
+            </h3>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              Batch #{product.id} • {product.name} ({product.batchNumber})
             </p>
-            {/* ✅ Etherscan link after success */}
-            {txHash && (
-              <a
-                href={`https://sepolia.etherscan.io/tx/${txHash}`}
-                target="_blank" rel="noopener noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--cyan)', marginTop: 4 }}
-              >
-                <ExternalLink size={11} /> View on Etherscan
-              </a>
-            )}
           </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn-green" onClick={handleTransfer} disabled={loading}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            {loading ? <span className="spinner" /> : <><ArrowRight size={14} />Confirm Transfer</>}
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}
+          >
+            <X size={18} />
           </button>
-          <button className="btn-outline" onClick={onClose} style={{ flex: 1 }}>Cancel</button>
         </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} style={{ padding: 24 }}>
+          <div style={{ marginBottom: 16 }}>
+            <label className="field-label">Recipient Ethereum Wallet Address</label>
+            <input
+              type="text"
+              placeholder="0x..."
+              value={toAddress}
+              onChange={(e) => setToAddress(e.target.value)}
+              required
+              className="input-field font-mono"
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label className="field-label">New Supply Chain Custody Stage</label>
+            <select
+              value={stage}
+              onChange={(e) => setStage(e.target.value)}
+              className="input-field"
+              style={{ cursor: 'pointer' }}
+            >
+              {[1, 2, 3, 4].map((s) => (
+                <option key={s} value={s} style={{ background: '#ffffff', color: 'var(--text-primary)' }}>
+                  Stage {s}: {STAGES[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 22 }}>
+            <label className="field-label">Carrier & Temperature Telemetry Notes (Optional)</label>
+            <textarea
+              placeholder="e.g. FedEx ColdChain Flight #840, Core Temp 3.4°C verified at transfer..."
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              className="input-field"
+              rows={3}
+              style={{ resize: 'none' }}
+            />
+          </div>
+
+          <div
+            style={{
+              background: 'rgba(43, 68, 255, 0.06)',
+              border: '1px solid rgba(43, 68, 255, 0.2)',
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 20,
+              display: 'flex',
+              gap: 10,
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <AlertCircle size={16} color="#2b44ff" style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>
+              This will submit a verified state transition on Ethereum Sepolia. Once confirmed, ownership transfers irrevocably to the recipient address.
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={onClose} className="btn-outline" style={{ padding: '9px 18px' }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={submitting} className="btn-emerald" style={{ padding: '9px 22px' }}>
+              <Send size={14} />
+              {submitting ? 'Submitting Tx...' : 'Sign Custody Handoff'}
+            </button>
+          </div>
+        </form>
       </motion.div>
     </div>
   );
